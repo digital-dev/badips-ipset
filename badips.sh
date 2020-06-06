@@ -2,6 +2,8 @@
 # Firehol Secure IPSET Blacklist
 # Name of database (will be downloaded with this name)
 _input=badips.db
+# Whitelist CIDR Mask.
+_network="192.168.1.0/24"
 
 ## Get bad IP data using https://github.com/firehol/blocklist-ipsets
 # AlienVault.com IP reputation database
@@ -57,14 +59,21 @@ ipset restore -! < hash_net.ipset
 # Create a backup of our IPTables Firewall Prior to Editing.
 iptables-save > iptables.bak
 
-# Finally, insert or append our black list
+# Whitelist our local network
+iptables -C INPUT -s $_network -j LOG --log-prefix "Accept local Traffic " || iptables -A INPUT -s $_network -j LOG --log-prefix "Accept local Network "
+iptables -C INPUT -s $_network -j accept || iptables -C INPUT -s $_network -j accept
+# Insert or append to iptables
 iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List "
 iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
 iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List "
 iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
 
 # Prompt the user to confirm changes to iptables (Prevents getting locked out of your own network)
-
+read -t 20 -p $'Type "confirm" to commit changes to iptables:\n' confirm
+if [[ $confirm = +(confirm|yes|Y|y) ]]
+	then echo "Changes have been commited."
+	else echo "Restoring previous configuration." && iptables-restore < iptables.bak
+fi
 
 # Remove temporary files
 rm $_input
