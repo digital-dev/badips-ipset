@@ -1,43 +1,66 @@
 #!/bin/sh
-# based on this version http://www.timokorthals.de/?p=334
-# adapted by Stéphane T.
-# Optimized by Digital-Dev
-
+# Overhaul by DigitalDev
 # Name of database (will be downloaded with this name)
 _input=badips.db
 
-# Name of chain in iptables (Only change this if you have already a chain with this name)
-_droplist=blacklist
+## Get bad IP data using https://github.com/firehol/blocklist-ipsets
+# AlienVault.com IP reputation database
+wget -qO- https://reputation.alienvault.com/reputation.generic >> $_input
+# pfBlockerNG Malicious Threats
+wget -qO- https://gist.githubusercontent.com/BBcan177/bf29d47ea04391cb3eb0/raw >> $_input
+wget -qO- https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw >> $_input
+# BadIPS.com in category any with score above 2 
+wget -qO- https://www.badips.com/get/list/any/2 >> $_input
+# Blocklist.de IPs that have been detected by fail2ban in the last 48 hours
+wget -qO- http://lists.blocklist.de/lists/all.txt >> $_input
+# Botscout 30d
+wget -qO- http://botscout.com/last_caught_cache.htm >> $_input
+# Bogon Networks - Unallocated (Free) Address Space
+wget -qO- http://www.cidr-report.org/bogons/freespace-prefix.txt >> $_input
+# CleanTalk Recurring HTTP Spammers
+wget -qO- https://cleantalk.org/blacklists/updated_today >> $_input
+# CruzIt.com IPs of compromised machines scanning for vulnerabilities and DDOS attacks
+wget -qO- http://www.cruzit.com/xwbl2txt.php >> $_input
+# Darklist fail2ban reporting
+wget -qO- http://www.darklist.de/raw.php >> $_input
+# Address that correspond to datacenters, co-location centers, shared and virtual webhosting providers. 
+wget -qO- https://raw.githubusercontent.com/client9/ipcat/master/datacenters.csv >> $_input
+# Dshield 30d top 20 attacking class C (/24) subnets over the last 30 days
+wget -qO- http://feeds.dshield.org/block.txt >> $_input
+# Malicious Botnet Serving Various Malware Families
+wget -qO- https://raw.githubusercontent.com/eSentire/malfeed/master/crazyerror.su_watch_ip.lst >> $_input
 
-# Maximum Protection (0)
-# Persistent, Confirmed bad traffic (3)
-# Overly Aggressive bad traffic (5)
-_level=2
+# Flush the IP Sets.
+ipset flush hash_ip
+ipset flush hash_net
 
-# Logged service (see www.badips.com for documentation)
-_service=any
+# Filter and create our datasets
+grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}" $_input | sort -n > hash_ip
+grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}/.." $_input | sort -n > hash_net
+sed -i -e 's/0.0.0.0//g' hash_ip
+sed -i '/^$/d' hash_ip
 
-# Get the bad IPs
-wget -qO- http://www.badips.com/get/list/${_service}/$_level > $_input || { echo "$0: Unable to download ip list."; exit 1; }
+# Create our ipset lists
+echo "create hash_ip hash:ip family inet hashsize 131072 maxelem 5000000" >> hash_ip.ipset
+echo "create hash_net hash:net family inet hashsize 131072 maxelem 5000000" >> hash_net.ipset
+sed -e 's/^/add blacklist /' hash_ip >> hash_ip.ipset
+sed -e 's/^/add blacklist /' hash_net >> hash_net.ipset
 
-# Flush the IP Set.
-ipset flush $_droplist
+# Insert or append our black list
+iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG
+iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
+iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_net src -j LOG
+iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
 
-# Create our Blacklist
-cat badips.db | sort -n > ips_tmp
-grep -E -o "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" ips_tmp > ips_sorted || rm ips_tmp
-echo "create $_droplist hash:ip family inet hashsize 131072 maxelem 5000000" >> blacklist.ipset
-sed -e 's/^/add blacklist /' ips_sorted >> blacklist.ipset
-rm $_input
-rm ips_sorted
 # Import blacklist to IPSET
-ipset restore -! < blacklist.ipset
+ipset restore -! < hash_ip.ipset
+ipset restore -! < hash_net.ipset
 
-# Finally, insert or append our black list
-iptables -C INPUT -m set --match-set $_droplist src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set $_droplist src -j LOG
-iptables -C INPUT -m set --match-set $_droplist src -j DROP || iptables -A INPUT -m set --match-set $_droplist src -j DROP
+# Remove temporary files
+#rm hash_ip
+#rm hash_net
+#rm hash_ip.ipset
+#rm hash_net.ipset
 
-# Remove blacklist file
-rm blacklist.ipset
 exit 0
 done
