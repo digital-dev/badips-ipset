@@ -1,5 +1,5 @@
 #!/bin/sh
-# Overhaul by DigitalDev
+# Firehol Secure IPSET Blacklist
 # Name of database (will be downloaded with this name)
 _input=badips.db
 
@@ -30,37 +30,48 @@ wget -qO- http://feeds.dshield.org/block.txt >> $_input
 # Malicious Botnet Serving Various Malware Families
 wget -qO- https://raw.githubusercontent.com/eSentire/malfeed/master/crazyerror.su_watch_ip.lst >> $_input
 
+# Verify or create our IP sets.
+if ipset -L hash_ip | grep -q 'hash_ip'; then true;else ipset create hash_ip hash:ip maxelem 5000000; fi
+if ipset -L hash_net | grep -q 'hash_net'; then true;else ipset create hash_net hash:net maxelem 5000000; fi
+
 # Flush the IP Sets.
 ipset flush hash_ip
 ipset flush hash_net
 
 # Filter and create our datasets
 grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}" $_input | sort -n > hash_ip
-grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}/.." $_input | sort -n > hash_net
+grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}/[0-9]{1,2}" $_input | sort -n > hash_net
 sed -i -e 's/0.0.0.0//g' hash_ip
 sed -i '/^$/d' hash_ip
 
 # Create our ipset lists
-echo "create hash_ip hash:ip family inet hashsize 131072 maxelem 5000000" >> hash_ip.ipset
-echo "create hash_net hash:net family inet hashsize 131072 maxelem 5000000" >> hash_net.ipset
-sed -e 's/^/add blacklist /' hash_ip >> hash_ip.ipset
-sed -e 's/^/add blacklist /' hash_net >> hash_net.ipset
-
-# Insert or append our black list
-iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG
-iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
-iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_net src -j LOG
-iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
+echo "create hash_ip hash:ip family inet hashsize 1024 maxelem 5000000" > hash_ip.ipset
+echo "create hash_net hash:net family inet hashsize 1024 maxelem 5000000" > hash_net.ipset
+sed -e 's/^/add hash_ip /' hash_ip >> hash_ip.ipset
+sed -e 's/^/add hash_net /' hash_net >> hash_net.ipset
 
 # Import blacklist to IPSET
 ipset restore -! < hash_ip.ipset
 ipset restore -! < hash_net.ipset
 
+# Create a backup of our IPTables Firewall Prior to Editing.
+iptables-save > iptables.bak
+
+# Finally, insert or append our black list
+iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List "
+iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
+iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List "
+iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
+
+# Prompt the user to confirm changes to iptables (Prevents getting locked out of your own network)
+
+
 # Remove temporary files
-#rm hash_ip
-#rm hash_net
-#rm hash_ip.ipset
-#rm hash_net.ipset
+rm $_input
+rm hash_ip
+rm hash_net
+rm hash_ip.ipset
+rm hash_net.ipset
 
 exit 0
 done
