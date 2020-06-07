@@ -71,9 +71,9 @@ iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -
 
 # Prompt the user to confirm changes to iptables (Prevents getting locked out of your own network)
 read -t 20 -p $'Type "confirm" to commit changes to iptables:\n' confirm
-if [[ $confirm = +(confirm|yes|Y|y) ]]
-	then echo "Changes have been commited."
-	else echo "Restoring previous configuration." && iptables-restore < iptables.bak
+if [[ $confirm = +(confirm|yes|Y|y) ]] then 
+	echo "Changes have been commited." else
+	echo "Restoring previous configuration." && iptables-restore < iptables.bak
 fi
 
 # Remove temporary files
