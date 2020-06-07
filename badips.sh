@@ -60,8 +60,9 @@ ipset restore -! < hash_net.ipset
 iptables-save > iptables.bak
 
 # Whitelist our local network
+iptables -C INPUT -s 127.0.0.1 -j ACCEPT || iptables -A INPUT -s 127.0.0.1 -j ACCEPT
 iptables -C INPUT -s $_network -j LOG --log-prefix "Accept local Traffic " || iptables -A INPUT -s $_network -j LOG --log-prefix "Accept local Network "
-iptables -C INPUT -s $_network -j accept || iptables -A INPUT -s $_network -j accept
+iptables -C INPUT -s $_network -j ACCEPT || iptables -A INPUT -s $_network -j ACCEPT
 # Insert or append to iptables
 iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List "
 iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
