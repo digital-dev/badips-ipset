@@ -28,6 +28,7 @@ Download or clone the repository:
 git clone https://github.com/digital-dev/Firehol-Naughty-List.git
 
 Edit the script to whitelist your local network. (Defaults to 192.168.1.0 - 192.168.1.255)
+
 _network="192.168.1.0/24
 
 Make the script executable.
