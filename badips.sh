@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Firehol Secure IPSET Blacklist
 # Name of database (will be downloaded with this name)
 _input=badips.db
@@ -6,31 +6,32 @@ _input=badips.db
 _network="192.168.1.0/24"
 
 ## Get bad IP data using https://github.com/firehol/blocklist-ipsets
-# AlienVault.com IP reputation database
-wget -qO- https://reputation.alienvault.com/reputation.generic >> $_input
+{
+wget -qO- https://reputation.alienvault.com/reputation.generic
 # pfBlockerNG Malicious Threats
-wget -qO- https://gist.githubusercontent.com/BBcan177/bf29d47ea04391cb3eb0/raw >> $_input
-wget -qO- https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw >> $_input
+wget -qO- https://gist.githubusercontent.com/BBcan177/bf29d47ea04391cb3eb0/raw
+wget -qO- https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw
 # BadIPS.com in category any with score above 2 
-wget -qO- https://www.badips.com/get/list/any/2 >> $_input
+wget -qO- https://www.badips.com/get/list/any/2
 # Blocklist.de IPs that have been detected by fail2ban in the last 48 hours
-wget -qO- http://lists.blocklist.de/lists/all.txt >> $_input
+wget -qO- http://lists.blocklist.de/lists/all.txt
 # Botscout 30d
-wget -qO- http://botscout.com/last_caught_cache.htm >> $_input
+wget -qO- http://botscout.com/last_caught_cache.htm
 # Bogon Networks - Unallocated (Free) Address Space
-wget -qO- http://www.cidr-report.org/bogons/freespace-prefix.txt >> $_input
+wget -qO- http://www.cidr-report.org/bogons/freespace-prefix.txt
 # CleanTalk Recurring HTTP Spammers
-wget -qO- https://cleantalk.org/blacklists/updated_today >> $_input
+wget -qO- https://cleantalk.org/blacklists/updated_today
 # CruzIt.com IPs of compromised machines scanning for vulnerabilities and DDOS attacks
-wget -qO- http://www.cruzit.com/xwbl2txt.php >> $_input
+wget -qO- http://www.cruzit.com/xwbl2txt.php
 # Darklist fail2ban reporting
-wget -qO- http://www.darklist.de/raw.php >> $_input
+wget -qO- http://www.darklist.de/raw.php
 # Address that correspond to datacenters, co-location centers, shared and virtual webhosting providers. 
-wget -qO- https://raw.githubusercontent.com/client9/ipcat/master/datacenters.csv >> $_input
+wget -qO- https://raw.githubusercontent.com/client9/ipcat/master/datacenters.csv
 # Dshield 30d top 20 attacking class C (/24) subnets over the last 30 days
-wget -qO- http://feeds.dshield.org/block.txt >> $_input
+wget -qO- http://feeds.dshield.org/block.txt
 # Malicious Botnet Serving Various Malware Families
-wget -qO- https://raw.githubusercontent.com/eSentire/malfeed/master/crazyerror.su_watch_ip.lst >> $_input
+wget -qO- https://raw.githubusercontent.com/eSentire/malfeed/master/crazyerror.su_watch_ip.lst
+} >> $_input
 
 # Verify or create our IP sets.
 if ipset -L hash_ip | grep -q 'hash_ip'; then true;else ipset create hash_ip hash:ip maxelem 5000000; fi
@@ -70,8 +71,8 @@ iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad 
 iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
 
 # Prompt the user to confirm changes to iptables (Prevents getting locked out of your own network)
-read -t 20 -p $'Type "confirm" to commit changes to iptables:\n' confirm
-if [[ $confirm = +(confirm|yes|Y|y) ]] then 
+read -rt 20 -p $'Type "confirm" to commit changes to iptables:\n' confirm
+if [[ $confirm = +(confirm|yes|Y|y) ]]; then 
 	echo "Changes have been commited." else
 	echo "Restoring previous configuration." && iptables-restore < iptables.bak
 fi
@@ -84,4 +85,3 @@ rm hash_ip.ipset
 rm hash_net.ipset
 
 exit 0
-done
