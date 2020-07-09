@@ -6,22 +6,29 @@
 # ██╔═══╝ ██╔══██║██╔══██╗██╔══██║██║╚██╗██║██║   ██║██║██╔══██║    ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   
 # ██║     ██║  ██║██║  ██║██║  ██║██║ ╚████║╚██████╔╝██║██║  ██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   
 # ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   
+# Firehol Secure IPSET Blacklist
 # Name of database (will be downloaded with this name)
 _input=badips.db
-# Whitelist CIDR Mask.
-_network="192.168.2.0/24"
+# Whitelist Local Network Traffic
+_network="192.168.1.0/24"
 
 ## Get bad IP data using https://github.com/firehol/blocklist-ipsets
 if [ ! -d blocklist-ipsets ]; then
 	git clone https://github.com/firehol/blocklist-ipsets
 	cd blocklist-ipsets || exit
-	cat ./*.*set > ../$_input
+	# Primary Lists (Does not include ISP's)
+	find . -maxdepth 1 -iname '*.*set' -not -name '*isp*.*set' | sort | xargs cat >> ../$_input
+	# Country Blacklisting (Default whitelist US, GB, AU, CA, NZ)
+	find ./geolite2_country/ -iname "country_*.*set" ! -name "*_us*.*set" ! -name "*_gb*.*set" ! -name "*_au*.*set" ! -name "*_ca*.*set" ! -name "*_nz*.*set" | sort | xargs cat >> ../$_input
 	cd .. || exit
 else
 	cd blocklist-ipsets || exit
 	git pull
-	cat ./*.*set > ../$_input
-	cd ..
+	# Primary Lists (Does not include ISP's)
+	find . -maxdepth 1 -iname '*.*set' -not -name '*isp*.*set' | sort | xargs cat >> ../$_input
+	# Country Blacklisting (Default whitelist US, GB, AU, CA, NZ)
+	find ./geolite2_country/ -iname "country_*.*set" ! -name "*_us*.*set" ! -name "*_gb*.*set" ! -name "*_au*.*set" ! -name "*_ca*.*set" ! -name "*_nz*.*set" | sort | xargs cat >> ../$_input
+	cd .. || exit
 fi
 
 # Verify or create our IP sets.
