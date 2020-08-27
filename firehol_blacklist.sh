@@ -1,27 +1,44 @@
 #!/bin/bash
-# WARNING, This script is one of the most aggressive blacklists you could possibly use short of dropping everything and whitelisting intended resources.
-# This wil block approximately 1/4th of the usable IPV4 address space. Do not use this script unless you know exactly what you are doing.
-################################################################################################################
-# 
-# ██████╗  █████╗ ██████╗  █████╗ ███╗   ██╗ ██████╗ ██╗ █████╗      █████╗  ██████╗ ███████╗███╗   ██╗████████╗
-# ██╔══██╗██╔══██╗██╔══██╗██╔══██╗████╗  ██║██╔═══██╗██║██╔══██╗    ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
-# ██████╔╝███████║██████╔╝███████║██╔██╗ ██║██║   ██║██║███████║    ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   
-# ██╔═══╝ ██╔══██║██╔══██╗██╔══██║██║╚██╗██║██║   ██║██║██╔══██║    ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   
-# ██║     ██║  ██║██║  ██║██║  ██║██║ ╚████║╚██████╔╝██║██║  ██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   
-# ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   
-# Firehol EXTREME IPSET Blacklist
+##############################################################################################################################
+# ███████╗██╗██████╗ ███████╗██╗  ██╗ ██████╗ ██╗         ██████╗ ██╗      █████╗  ██████╗██╗  ██╗██╗     ██╗███████╗████████╗
+# ██╔════╝██║██╔══██╗██╔════╝██║  ██║██╔═══██╗██║         ██╔══██╗██║     ██╔══██╗██╔════╝██║ ██╔╝██║     ██║██╔════╝╚══██╔══╝
+# █████╗  ██║██████╔╝█████╗  ███████║██║   ██║██║         ██████╔╝██║     ███████║██║     █████╔╝ ██║     ██║███████╗   ██║   
+# ██╔══╝  ██║██╔══██╗██╔══╝  ██╔══██║██║   ██║██║         ██╔══██╗██║     ██╔══██║██║     ██╔═██╗ ██║     ██║╚════██║   ██║   
+# ██║     ██║██║  ██║███████╗██║  ██║╚██████╔╝███████╗    ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗███████╗██║███████║   ██║   
+# ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝    ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝╚══════╝   ╚═╝   
+# Firehol Secure IPSET Blacklist
 # Name of database (will be downloaded with this name)
 _input=badips.db
-# Whitelist Local Network Traffic
+# Whitelist CIDR Mask.
 _network="192.168.1.0/24"
-_intface=$(route | grep '^default' | grep -o '[^ ]*$')
 
 ## Get bad IP data using https://github.com/firehol/blocklist-ipsets
 if [ ! -d blocklist-ipsets ]; then
 	git clone https://github.com/firehol/blocklist-ipsets
 	cd blocklist-ipsets || exit
 	# Primary Lists (Does not include ISP's)
-	find . -maxdepth 1 -iname '*.*set' -not -name '*isp*.*set' | sort | xargs cat >> ../$_input
+	find . -maxdepth 1 -name 'feodo*.*set' -o \
+	-name '*palevo.*set' -o \
+	-name 'sslbl*.*set' -o \
+	-name '*zeus.*set' -o \
+	-name '*dshield*.*set' -o \
+	-name '*spamhaus*.*set' -o \
+	-name '*bogons*.*set'-o \
+	-name '*open*.*set' -o \
+	-name 'blocklist_de*.*set' -o \
+	-name '*alien*.*set' -o \
+	-name 'bi*.*set' -o \
+	-name 'coinbl*.*set' -o \
+	-name 'datacenters.*set' -o \
+	-name '*ponmocup*.*set' -o \
+	-name '*esentire*.*set' -o \
+	-name 'botscout*.*set' -o \
+	-name '*webexploit*.*set' -o \
+	-name '*php*.*set' -o \
+	# The entry below (*rox*.*set) will block many proxies and anonimizers. To disable this, comment the below line out with #
+	-name '*rox*.*set' -o \
+	-name 'bbca*.*set' | 
+	sort | xargs cat >> ../$_input
 	# Country Blacklisting (Default whitelist US, GB, AU, CA, NZ)
 	find ./geolite2_country/ -iname "country_*.*set" ! -name "*_us*.*set" ! -name "*_gb*.*set" ! -name "*_au*.*set" ! -name "*_ca*.*set" ! -name "*_nz*.*set" | sort | xargs cat >> ../$_input
 	cd .. || exit
@@ -66,19 +83,11 @@ iptables-save > iptables.bak
 # Whitelist our local network
 iptables -C INPUT -s 127.0.0.1 -j ACCEPT || iptables -A INPUT -s 127.0.0.1 -j ACCEPT
 iptables -C INPUT -s $_network -j ACCEPT || iptables -A INPUT -s $_network -j ACCEPT
-iptables -C INPUT -i $_intface -j ACCEPT || iptables -A INPUT -i $_intface -j ACCEPT
 # Insert or append to iptables
 iptables -C INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_ip src -j LOG --log-prefix "Drop Bad IP List "
 iptables -C INPUT -m set --match-set hash_ip src -j DROP || iptables -A INPUT -m set --match-set hash_ip src -j DROP
 iptables -C INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List " || iptables -A INPUT -m set --match-set hash_net src -j LOG --log-prefix "Drop Bad IP List "
 iptables -C INPUT -m set --match-set hash_net src -j DROP || iptables -A INPUT -m set --match-set hash_net src -j DROP
-
-# Prompt the user to confirm changes to iptables (Prevents getting locked out of your own network)
-read -r -t 20 -p $'Type "confirm" to commit changes to iptables:\n' confirm
-if [[ $confirm = +(confirm|yes|Y|y) ]]
-	then echo "Changes have been commited."
-	else echo "Restoring previous configuration." && iptables-restore < iptables.bak
-fi
 
 # Remove temporary files
 rm $_input
